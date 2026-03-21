@@ -4,15 +4,12 @@ class Orchestrator:
         self.gan = gan
         self.diffusion = diffusion
 
-    def route(self, artifact_type, data):
+    def run(self, artifact_type, x):
         if artifact_type == "metadata":
-            return self.vae(data)
+            return self.vae(x)
 
         elif artifact_type == "sequence":
-            return self.gan(data)
+            return self.gan(x)
 
         elif artifact_type == "binary":
-            return self.diffusion(data)
-
-        else:
-            raise ValueError("Unknown artifact type")
+            return self.diffusion(x)

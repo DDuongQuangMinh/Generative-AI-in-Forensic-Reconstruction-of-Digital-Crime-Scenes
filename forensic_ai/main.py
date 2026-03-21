@@ -3,7 +3,7 @@ from models.vae import VAE
 from models.gan import Generator
 from models.diffusion import Denoiser
 from pipeline.orchestrator import Orchestrator
-from evaluation.integrity import hash_artifact
+from evaluation.integrity import hash_data
 
 vae = VAE()
 gan = Generator()
@@ -11,13 +11,10 @@ diff = Denoiser()
 
 orch = Orchestrator(vae, gan, diff)
 
-# Example corrupted input
-data = torch.randn(1, 3)
+# Example metadata input
+x = torch.randn(1, 3)
 
-# Route as metadata
-output, _, _ = orch.route("metadata", data)
+out, _, _ = orch.run("metadata", x)
 
-hash_value = hash_artifact(output.detach().numpy())
-
-print("Reconstructed:", output)
-print("Hash:", hash_value)
+print("Output:", out)
+print("Hash:", hash_data(out.detach().numpy()))

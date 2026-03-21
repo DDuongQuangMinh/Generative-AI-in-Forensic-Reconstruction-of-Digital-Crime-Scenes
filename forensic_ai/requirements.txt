@@ -1,13 +1,8 @@
 torch>=2.2.0
-numpy>=1.24.0
-pandas>=2.0.0
-scikit-learn>=1.3.0
-tqdm>=4.66.0
-matplotlib>=3.7.0
-
-# forensic parsing
-pytsk3>=20230125
-python-evtx>=0.7.4
-
-# Visualization / debugging
-matplotlib>=3.7.0
+numpy
+pandas
+scikit-learn
+tqdm
+matplotlib
+pytsk3
+python-evtx

@@ -1,28 +1,67 @@
 import torch
+from torch.utils.data import DataLoader
+
 from models.vae import VAE
 from models.gan import Generator, Discriminator
-from models.diffusion import Denoiser
+from pipeline.dataset import ForensicDataset, SequenceDataset
 
 vae = VAE()
 gen = Generator()
 disc = Discriminator()
-diff = Denoiser()
 
-optimizer_vae = torch.optim.Adam(vae.parameters(), lr=1e-3)
+vae_loader = DataLoader(
+    ForensicDataset("data/processed/mft.json"),
+    batch_size=32,
+    shuffle=True
+)
 
-# Example training loop (VAE only for brevity)
-for epoch in range(10):
-    x = torch.randn(32, 3)
+gan_loader = DataLoader(
+    SequenceDataset("data/processed/lanl_sequences.json"),
+    batch_size=64,
+    shuffle=True
+)
 
-    recon, mu, logvar = vae(x)
+opt_vae = torch.optim.Adam(vae.parameters(), lr=1e-3)
+opt_g = torch.optim.Adam(gen.parameters(), lr=1e-3)
+opt_d = torch.optim.Adam(disc.parameters(), lr=1e-3)
 
-    recon_loss = ((recon - x) ** 2).mean()
-    kl_loss = -0.5 * torch.sum(1 + logvar - mu**2 - logvar.exp())
+criterion = torch.nn.BCELoss()
 
-    loss = recon_loss + kl_loss
+# ---- Train VAE ----
+for epoch in range(5):
+    for x, y in vae_loader:
+        recon, mu, logvar = vae(x)
 
-    optimizer_vae.zero_grad()
-    loss.backward()
-    optimizer_vae.step()
+        recon_loss = ((recon - y) ** 2).mean()
+        kl = -0.5 * torch.sum(1 + logvar - mu**2 - logvar.exp())
 
-    print(f"Epoch {epoch}, Loss: {loss.item()}")
+        loss = recon_loss + kl
+
+        opt_vae.zero_grad()
+        loss.backward()
+        opt_vae.step()
+
+    print("VAE Epoch:", epoch, loss.item())
+
+# ---- Train GAN ----
+for epoch in range(5):
+    for real in gan_loader:
+        bs = real.size(0)
+
+        noise = torch.randn(bs, 10)
+        fake = gen(noise)
+
+        loss_d = criterion(disc(real), torch.ones(bs,1)) + \
+                 criterion(disc(fake.detach()), torch.zeros(bs,1))
+
+        opt_d.zero_grad()
+        loss_d.backward()
+        opt_d.step()
+
+        loss_g = criterion(disc(fake), torch.ones(bs,1))
+
+        opt_g.zero_grad()
+        loss_g.backward()
+        opt_g.step()
+
+    print("GAN Epoch:", epoch, loss_g.item())

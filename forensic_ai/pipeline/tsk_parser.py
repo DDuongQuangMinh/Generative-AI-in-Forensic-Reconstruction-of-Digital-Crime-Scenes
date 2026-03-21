@@ -1,5 +1,4 @@
 import pytsk3
-import datetime
 
 def parse_mft(image_path):
     img = pytsk3.Img_Info(image_path)
@@ -7,38 +6,26 @@ def parse_mft(image_path):
 
     records = []
 
-    directory = fs.open_dir(path="/")
-
-    def walk_directory(directory, parent_path=""):
-        for entry in directory:
+    def walk(dir_obj):
+        for entry in dir_obj:
             try:
-                if not hasattr(entry, "info") or not entry.info.meta:
+                if not entry.info.meta:
                     continue
 
                 meta = entry.info.meta
                 name = entry.info.name.name.decode(errors="ignore")
 
-                record = {
-                    "file_name": name,
+                records.append({
                     "inode": meta.addr,
-                    "parent_path": parent_path,
-                    "crtime": meta.crtime,
-                    "mtime": meta.mtime,
-                    "atime": meta.atime,
-                    "ctime": meta.ctime,
-                    "size": meta.size
-                }
+                    "size": meta.size,
+                    "timestamp": meta.mtime or 0
+                })
 
-                records.append(record)
-
-                # Recurse into directories
-                if entry.info.meta.type == pytsk3.TSK_FS_META_TYPE_DIR:
-                    subdir = entry.as_directory()
-                    walk_directory(subdir, parent_path + "/" + name)
+                if meta.type == pytsk3.TSK_FS_META_TYPE_DIR:
+                    walk(entry.as_directory())
 
             except Exception:
                 continue
 
-    walk_directory(directory)
-
+    walk(fs.open_dir("/"))
     return records
