@@ -6,3 +6,4 @@ tqdm
 matplotlib
 pytsk3
 python-evtx
+matplotlib

@@ -1,3 +1,5 @@
+import torch
+
 class Orchestrator:
     def __init__(self, vae, gan, diffusion):
         self.vae = vae
@@ -6,10 +8,17 @@ class Orchestrator:
 
     def run(self, artifact_type, x):
         if artifact_type == "metadata":
-            return self.vae(x)
+            recon, mu, logvar = self.vae(x)
+            return recon, {"type": "VAE", "info": "metadata reconstruction"}
 
         elif artifact_type == "sequence":
-            return self.gan(x)
+            noise = torch.randn(x.size(0), 32)
+            fake = self.gan(noise)
+            return fake, {"type": "GAN", "info": "sequence generation"}
 
         elif artifact_type == "binary":
-            return self.diffusion(x)
+            recon = self.diffusion(x)
+            return recon, {"type": "Diffusion", "info": "denoising"}
+
+        else:
+            raise ValueError("Unknown artifact type")

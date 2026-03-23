@@ -1,67 +1,76 @@
 import torch
 from torch.utils.data import DataLoader
 
-from models.vae import VAE
-from models.gan import Generator, Discriminator
-from pipeline.dataset import ForensicDataset, SequenceDataset
+from models.gan import Generator, Critic
+from pipeline.dataset import SequenceDataset
 
-vae = VAE()
-gen = Generator()
-disc = Discriminator()
+dataset = SequenceDataset("data/processed/lanl_sequences.json")
+loader = DataLoader(dataset, batch_size=64, shuffle=True)
 
-vae_loader = DataLoader(
-    ForensicDataset("data/processed/mft.json"),
-    batch_size=32,
-    shuffle=True
-)
+mean = torch.load("mean.pt")
+std = torch.load("std.pt")
 
-gan_loader = DataLoader(
-    SequenceDataset("data/processed/lanl_sequences.json"),
-    batch_size=64,
-    shuffle=True
-)
+input_dim = next(iter(loader)).shape[1]
+noise_dim = 32
 
-opt_vae = torch.optim.Adam(vae.parameters(), lr=1e-3)
-opt_g = torch.optim.Adam(gen.parameters(), lr=1e-3)
-opt_d = torch.optim.Adam(disc.parameters(), lr=1e-3)
+gen = Generator(noise_dim, input_dim)
+critic = Critic(input_dim)
 
-criterion = torch.nn.BCELoss()
+opt_g = torch.optim.Adam(gen.parameters(), lr=1e-4)
+opt_c = torch.optim.Adam(critic.parameters(), lr=1e-4)
 
-# ---- Train VAE ----
-for epoch in range(5):
-    for x, y in vae_loader:
-        recon, mu, logvar = vae(x)
+lambda_gp = 10
 
-        recon_loss = ((recon - y) ** 2).mean()
-        kl = -0.5 * torch.sum(1 + logvar - mu**2 - logvar.exp())
+def gradient_penalty(real, fake):
+    alpha = torch.rand(real.size(0), 1)
+    alpha = alpha.expand_as(real)
 
-        loss = recon_loss + kl
+    interpolated = alpha * real + (1 - alpha) * fake
+    interpolated.requires_grad_(True)
 
-        opt_vae.zero_grad()
-        loss.backward()
-        opt_vae.step()
+    pred = critic(interpolated)
 
-    print("VAE Epoch:", epoch, loss.item())
+    gradients = torch.autograd.grad(
+        outputs=pred,
+        inputs=interpolated,
+        grad_outputs=torch.ones_like(pred),
+        create_graph=True
+    )[0]
 
-# ---- Train GAN ----
-for epoch in range(5):
-    for real in gan_loader:
+    return ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+
+for epoch in range(9000):
+    for real in loader:
+        real = real.float()
+        real = (real - mean) / std
+
         bs = real.size(0)
 
-        noise = torch.randn(bs, 10)
+        # Train critic
+        for _ in range(5):
+            noise = torch.randn(bs, noise_dim)
+            fake = gen(noise)
+
+            loss_c = -(critic(real).mean() - critic(fake.detach()).mean())
+            gp = gradient_penalty(real, fake)
+
+            loss = loss_c + lambda_gp * gp
+
+            opt_c.zero_grad()
+            loss.backward()
+            opt_c.step()
+
+        # Train generator
+        noise = torch.randn(bs, noise_dim)
         fake = gen(noise)
 
-        loss_d = criterion(disc(real), torch.ones(bs,1)) + \
-                 criterion(disc(fake.detach()), torch.zeros(bs,1))
-
-        opt_d.zero_grad()
-        loss_d.backward()
-        opt_d.step()
-
-        loss_g = criterion(disc(fake), torch.ones(bs,1))
+        loss_g = -critic(fake).mean()
 
         opt_g.zero_grad()
         loss_g.backward()
         opt_g.step()
 
-    print("GAN Epoch:", epoch, loss_g.item())
+    print(f"Epoch {epoch}")
+
+torch.save(gen.state_dict(), "gan_model.pth")
+print("GAN trained")

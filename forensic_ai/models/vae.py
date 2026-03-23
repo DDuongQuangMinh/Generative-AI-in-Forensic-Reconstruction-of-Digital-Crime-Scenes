@@ -2,23 +2,36 @@ import torch
 import torch.nn as nn
 
 class VAE(nn.Module):
-    def __init__(self):
+    def __init__(self, input_dim, latent_dim=32):
         super().__init__()
 
-        self.fc1 = nn.Linear(3, 16)
-        self.fc_mu = nn.Linear(16, 2)
-        self.fc_logvar = nn.Linear(16, 2)
+        # Encoder
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU()
+        )
 
-        self.fc2 = nn.Linear(2, 16)
-        self.fc3 = nn.Linear(16, 3)
+        self.fc_mu = nn.Linear(128, latent_dim)
+        self.fc_logvar = nn.Linear(128, latent_dim)
+
+        # Decoder
+        self.decoder = nn.Sequential(
+            nn.Linear(latent_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),
+            nn.ReLU(),
+            nn.Linear(256, input_dim)
+        )
 
     def forward(self, x):
-        h = torch.relu(self.fc1(x))
+        h = self.encoder(x)
         mu = self.fc_mu(h)
         logvar = self.fc_logvar(h)
 
         std = torch.exp(0.5 * logvar)
         z = mu + std * torch.randn_like(std)
 
-        h2 = torch.relu(self.fc2(z))
-        return self.fc3(h2), mu, logvar
+        recon = self.decoder(z)
+        return recon, mu, logvar
