@@ -39,9 +39,9 @@ input_dim = sample.shape[1]
 def load_model(model, path):
     try:
         model.load_state_dict(torch.load(path, map_location=device))
-        print(f"✅ Loaded {path}")
+        print(f"Loaded {path}")
     except:
-        print(f"⚠️ Missing {path}, using untrained model")
+        print(f"Missing {path}, using untrained model")
     return model.to(device).eval()
 
 vae = load_model(VAE(input_dim), "vae_model.pth")
@@ -58,7 +58,7 @@ init_log()
 # -----------------------------
 # Batch processing
 # -----------------------------
-NUM_SAMPLES = 50  # 🔥 change as needed
+NUM_SAMPLES = 50  #change as needed
 
 for i, sample in enumerate(loader):
     if i >= NUM_SAMPLES:
