@@ -12,7 +12,7 @@ class Orchestrator:
             return recon, {"type": "VAE", "info": "metadata reconstruction"}
 
         elif artifact_type == "sequence":
-            noise = torch.randn(x.size(0), 32)
+            noise = torch.randn(x.size(0), 32).to(x.device)
             fake = self.gan(noise)
             return fake, {"type": "GAN", "info": "sequence generation"}
 

@@ -1,76 +1,22 @@
 import torch
-from torch.utils.data import DataLoader
+import torch.nn as nn
 
-from models.gan import Generator, Critic
-from pipeline.dataset import SequenceDataset
+class DiffusionModel(nn.Module):
+    def __init__(self, input_dim):
+        super().__init__()
 
-dataset = SequenceDataset("data/processed/lanl_sequences.json")
-loader = DataLoader(dataset, batch_size=64, shuffle=True)
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, input_dim)
+        )
 
-mean = torch.load("mean.pt")
-std = torch.load("std.pt")
+    def forward(self, x):
+        return torch.tanh(self.net(x))
 
-input_dim = next(iter(loader)).shape[1]
-noise_dim = 32
 
-gen = Generator(noise_dim, input_dim)
-critic = Critic(input_dim)
-
-opt_g = torch.optim.Adam(gen.parameters(), lr=1e-4)
-opt_c = torch.optim.Adam(critic.parameters(), lr=1e-4)
-
-lambda_gp = 10
-
-def gradient_penalty(real, fake):
-    alpha = torch.rand(real.size(0), 1)
-    alpha = alpha.expand_as(real)
-
-    interpolated = alpha * real + (1 - alpha) * fake
-    interpolated.requires_grad_(True)
-
-    pred = critic(interpolated)
-
-    gradients = torch.autograd.grad(
-        outputs=pred,
-        inputs=interpolated,
-        grad_outputs=torch.ones_like(pred),
-        create_graph=True
-    )[0]
-
-    return ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-
-for epoch in range(100):
-    for real in loader:
-        real = real.float()
-        real = (real - mean) / std
-
-        bs = real.size(0)
-
-        # Train critic
-        for _ in range(5):
-            noise = torch.randn(bs, noise_dim)
-            fake = gen(noise)
-
-            loss_c = -(critic(real).mean() - critic(fake.detach()).mean())
-            gp = gradient_penalty(real, fake)
-
-            loss = loss_c + lambda_gp * gp
-
-            opt_c.zero_grad()
-            loss.backward()
-            opt_c.step()
-
-        # Train generator
-        noise = torch.randn(bs, noise_dim)
-        fake = gen(noise)
-
-        loss_g = -critic(fake).mean()
-
-        opt_g.zero_grad()
-        loss_g.backward()
-        opt_g.step()
-
-    print(f"Epoch {epoch}")
-
-torch.save(gen.state_dict(), "gan_model.pth")
-print("✅ GAN trained")
+def add_noise(x, noise_level=0.05):
+    noise = torch.randn_like(x) * noise_level
+    return x + noise, noise

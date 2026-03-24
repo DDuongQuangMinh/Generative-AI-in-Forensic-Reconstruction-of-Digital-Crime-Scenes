@@ -58,7 +58,7 @@ y_true = []
 y_pred = []
 scores = []
 
-THRESHOLD = 0.5  # decision threshold
+THRESHOLD = 0.7  # decision threshold
 
 # -----------------------------
 # Process NORMAL data
